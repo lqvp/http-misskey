@@ -1,0 +1,326 @@
+<!DOCTYPE HTML>
+<html lang="ja">
+  <head>
+    <title>Misskey LTL Stream</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {
+        /* Misskeyのテーマから色を取得 */
+        /* ライトモード (l-light.json5) */
+        --light-bg: #f9f9f9;
+        --light-fg: #676767;
+        --light-fgHighlighted: #333;
+        --light-divider: #e8e8e8;
+        --light-panel: #fff;
+        --light-header: rgba(255, 255, 255, 0.7);
+        --light-shadow: rgba(0, 0, 0, 0.1);
+        --light-accent: #31748f; /* Misskeyの典型的なアクセント色 */
+        
+        /* ダークモード (d-dark.json5) */
+        --dark-bg: #232323;
+        --dark-fg: rgb(199, 209, 216);
+        --dark-fgHighlighted: #fff;
+        --dark-divider: rgba(255, 255, 255, 0.14);
+        --dark-panel: #2d2d2d;
+        --dark-header: rgba(45, 45, 45, 0.7);
+        --dark-navBg: #363636;
+        --dark-shadow: rgba(0, 0, 0, 0.3);
+        --dark-accent: #31748f; /* d-dark.jsonからアクセント色を使用 */
+        --dark-mention: #da6d35;
+        --dark-mentionMe: #d44c4c;
+        --dark-hashtag: #4cb8d4;
+        
+        /* デフォルトはライトモード */
+        --bg: var(--light-bg);
+        --fg: var(--light-fg);
+        --fgHighlighted: var(--light-fgHighlighted);
+        --divider: var(--light-divider);
+        --panel: var(--light-panel);
+        --header: var(--light-header);
+        --shadow: var(--light-shadow);
+        --accent: var(--light-accent);
+        
+        /* 共通の設定 */
+        --radius: 12px;
+        --radius-sm: 6px;
+        --radius-lg: 16px;
+        --animate-duration: 0.3s;
+        --animate-timing: ease;
+      }
+      
+      body {
+        font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDGothic", Meiryo, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.5;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      /* 固定位置のカウンター表示 */
+      .connection-counter {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: var(--panel);
+        color: var(--fgHighlighted);
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        box-shadow: 0 2px 5px var(--shadow);
+        z-index: 1000;
+        font-weight: bold;
+        border: 1px solid var(--divider);
+      }
+      
+      /* カウンター内の人数アイコン */
+      .user-icons {
+        display: inline-block;
+        margin-left: 4px;
+      }
+      
+      .container {
+        width: 100%;
+        margin: 0 auto;
+        padding: 0;
+      }
+      
+      .header {
+        position: sticky;
+        top: 0;
+        background: var(--header);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        padding: 16px 0;
+        border-bottom: solid 1px var(--divider);
+        margin-bottom: 12px;
+        z-index: 10;
+      }
+      
+      .header-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      
+      .header-content h1 {
+        margin-top: 0;
+        color: var(--fgHighlighted);
+      }
+      
+      /* タイムライン */
+      .timeline {
+        display: flex;
+        flex-direction: column-reverse;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      
+      /* ノートスタイル */
+      .note {
+        background: var(--panel);
+        border-radius: var(--radius);
+        margin-bottom: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px var(--shadow);
+        animation: fade-in var(--animate-duration) var(--animate-timing);
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      }
+      
+      .article {
+        display: flex;
+        padding: 16px;
+      }
+      
+      .avatar {
+        flex-shrink: 0;
+        width: 50px;
+        height: 50px;
+        margin-right: 12px;
+      }
+      
+      .avatar-img {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid transparent;
+        box-sizing: border-box;
+        background-color: var(--bg);
+      }
+      
+      .main {
+        flex: 1;
+        min-width: 0;
+      }
+      
+      .note-header {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        margin-bottom: 8px;
+      }
+      
+      .user-name {
+        font-weight: bold;
+        margin-right: 6px;
+        color: var(--fgHighlighted);
+      }
+      
+      .user-username {
+        color: var(--fg);
+        opacity: 0.7;
+        font-size: 0.9em;
+        margin-right: 6px;
+      }
+      
+      .note-time {
+        font-size: 0.8em;
+        color: var(--fg);
+        opacity: 0.7;
+        margin-left: auto;
+      }
+      
+      .note-content {
+        overflow-wrap: break-word;
+        word-break: break-word;
+        white-space: pre-wrap;
+        line-height: 1.7;
+      }
+      
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(-5px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      /* ダークモード対応 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: var(--dark-bg);
+          --fg: var(--dark-fg);
+          --fgHighlighted: var(--dark-fgHighlighted);
+          --divider: var(--dark-divider);
+          --panel: var(--dark-panel);
+          --header: var(--dark-header);
+          --shadow: var(--dark-shadow);
+          --accent: var(--dark-accent);
+        }
+      }
+      
+      /* レスポンシブデザイン - 段階的なメディアクエリ */
+      /* モバイル（小） */
+      @media (max-width: 480px) {
+        .timeline {
+          padding: 0 8px;
+        }
+        
+        .note {
+          margin-bottom: 10px;
+          border-radius: var(--radius-sm);
+        }
+        
+        .article {
+          padding: 10px;
+        }
+        
+        .avatar, .avatar-img {
+          width: 40px;
+          height: 40px;
+        }
+        
+        .header-content {
+          padding: 0 8px;
+        }
+        
+        h1 {
+          font-size: 1.5rem;
+        }
+      }
+      
+      /* モバイル（大）〜タブレット */
+      @media (min-width: 481px) and (max-width: 768px) {
+        .timeline {
+          max-width: 600px;
+        }
+        
+        .header-content {
+          max-width: 600px;
+        }
+      }
+      
+      /* タブレット〜小型デスクトップ */
+      @media (min-width: 769px) and (max-width: 1024px) {
+        .timeline {
+          max-width: 800px;
+        }
+        
+        .header-content {
+          max-width: 800px;
+        }
+        
+        .avatar, .avatar-img {
+          width: 54px;
+          height: 54px;
+        }
+      }
+      
+      /* 通常デスクトップ */
+      @media (min-width: 1025px) and (max-width: 1440px) {
+        .timeline {
+          max-width: 1000px;
+        }
+        
+        .header-content {
+          max-width: 1000px;
+        }
+        
+        .avatar, .avatar-img {
+          width: 58px;
+          height: 58px;
+        }
+        
+        .article {
+          padding: 20px;
+        }
+      }
+      
+      /* 大型ディスプレイ */
+      @media (min-width: 1441px) {
+        .timeline {
+          max-width: 1200px;
+        }
+        
+        .header-content {
+          max-width: 1200px;
+        }
+        
+        .avatar, .avatar-img {
+          width: 60px;
+          height: 60px;
+        }
+        
+        .article {
+          padding: 24px;
+        }
+        
+        .note {
+          margin-bottom: 20px;
+          border-radius: var(--radius-lg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- カウンターはここに挿入される -->
+    
+    <div class="container">
+      <div class="header">
+        <div class="header-content">
+          <h1>Misskey.io ローカルタイムライン</h1>
+          <p>このページはJavaScriptを使用せずにMisskeyのLTLをストリーミング表示します。</p>
+        </div>
+      </div>
+      
+      <div class="timeline">
